@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monsoon Safety Net</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Leaflet CSS for Maps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+
+    <style>
+        /* --- Netflix-Inspired Dark Theme --- */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #141414;
+            color: #ffffff;
+        }
+
+        /* --- Auth Screen Styling --- */
+        #auth-screen {
+            background-image: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url('https://images.unsplash.com/photo-1592210454359-9043f067919b?q=80&w=2070&auto=format&fit=crop');
+            background-size: cover;
+            background-position: center;
+        }
+        .auth-card {
+            background-color: rgba(0, 0, 0, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .auth-card input {
+            background-color: #333;
+            border: 1px solid #555;
+            color: white;
+        }
+        .auth-card input:focus {
+            outline: none;
+            border-color: #e50914;
+            box-shadow: 0 0 0 2px rgba(229, 9, 20, 0.5);
+        }
+
+        /* --- Main App Styling --- */
+        .btn-primary {
+            background-color: #e50914;
+            transition: background-color 0.3s;
+        }
+        .btn-primary:hover:not(:disabled) {
+            background-color: #f6121d;
+        }
+        .btn-secondary {
+            background-color: #555;
+            transition: background-color 0.3s;
+        }
+        .btn-secondary:hover {
+             background-color: #666;
+        }
+        .weather-card {
+            background: #1f1f1f;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .nav-link {
+            border-bottom: 3px solid transparent;
+            color: #a0aec0; /* gray-400 */
+        }
+        .nav-link-active {
+            color: #ffffff;
+            border-bottom-color: #e50914;
+        }
+        .page-card {
+            background-color: #1f1f1f;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .alert-high { background-color: #b91c1c; color: white; } /* red-700 */
+        .alert-medium { background-color: #d97706; color: white; } /* amber-600 */
+        .alert-low { background-color: #ca8a04; color: white; } /* yellow-600 */
+
+        /* --- Modal Styling --- */
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 50;
+            display: flex;
+        }
+        .modal-content {
+            background-color: #1f1f1f;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* --- Map & Scrollbar --- */
+        #weather-map {
+            height: 500px;
+            border-radius: 0.5rem;
+        }
+        .leaflet-popup-content-wrapper, .leaflet-popup-tip {
+            background: #2d2d2d;
+            color: #fff;
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #2d2d2d; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #777; }
+        
+        /* --- Animation --- */
+        @keyframes scroll-left {
+            0% { transform: translateX(100%); }
+            100% { transform: translateX(-100%); }
+        }
+        #alert-ticker-content { animation: scroll-left 40s linear infinite; }
+        
+        /* Form transition */
+        .form-container { transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out; }
+        .form-hidden { opacity: 0; transform: scale(0.95); position: absolute; pointer-events: none; }
+    </style>
+</head>
+<body class="antialiased">
+
+<div id="app">
+    
+    <!-- Auth Screen (Login/Register) -->
+    <div id="auth-screen" class="min-h-screen flex items-center justify-center p-4">
+        <div class="w-full max-w-md auth-card p-8 rounded-lg shadow-lg relative overflow-hidden">
+            <div class="text-center mb-8">
+                <i class="fas fa-cloud-showers-heavy text-5xl text-red-600"></i>
+                <h1 class="text-3xl font-bold text-white mt-2">Monsoon Safety Net</h1>
+                <p class="text-gray-400">Your real-time rain alert and safety companion.</p>
+            </div>
+
+            <div id="auth-container" class="relative">
+                <!-- Login Form -->
+                <form id="login-form" class="space-y-4 form-container">
+                    <h2 class="text-xl font-semibold text-center text-white">Login</h2>
+                    <div>
+                        <label for="login-email" class="block text-sm font-medium text-gray-300">Email</label>
+                        <input type="email" id="login-email" required class="w-full mt-1 px-4 py-2 rounded-lg focus:ring-0">
+                    </div>
+                    <div>
+                        <label for="login-password" class="block text-sm font-medium text-gray-300">Password</label>
+                        <div class="relative mt-1">
+                            <input type="password" id="login-password" required class="w-full px-4 py-2 rounded-lg focus:ring-0 pr-10">
+                            <button type="button" class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 password-toggle" data-target="login-password">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+                     <div class="text-right -mt-2">
+                        <a href="#" id="show-forgot" class="text-xs text-gray-400 hover:text-red-500 transition">Forgot Password?</a>
+                    </div>
+                    <p id="login-error" class="text-red-500 text-sm hidden min-h-[20px]"></p>
+                    <button type="submit" class="w-full btn-primary text-white font-semibold py-2.5 rounded-lg flex items-center justify-center">
+                        <span class="btn-text">Login</span>
+                        <i class="fas fa-spinner fa-spin ml-2 hidden"></i>
+                    </button>
+                    <p class="text-center text-sm text-gray-400">
+                        Don't have an account? <a href="#" id="show-register" class="font-semibold text-red-500 hover:underline">Register here</a>
+                    </p>
+                </form>
+
+                <!-- Registration Form -->
+                <form id="register-form" class="space-y-4 form-container form-hidden">
+                    <h2 class="text-xl font-semibold text-center text-white">Create Account</h2>
+                    <div>
+                        <label for="register-email" class="block text-sm font-medium text-gray-300">Email</label>
+                        <input type="email" id="register-email" required class="w-full mt-1 px-4 py-2 rounded-lg focus:ring-0">
+                    </div>
+                    <div>
+                        <label for="register-password" class="block text-sm font-medium text-gray-300">Password (min. 6 characters)</label>
+                        <div class="relative mt-1">
+                            <input type="password" id="register-password" required class="w-full px-4 py-2 rounded-lg focus:ring-0 pr-10">
+                            <button type="button" class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 password-toggle" data-target="register-password">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <p id="register-error" class="text-red-500 text-sm hidden min-h-[20px]"></p>
+                    <button type="submit" class="w-full btn-primary text-white font-semibold py-2.5 rounded-lg flex items-center justify-center">
+                        <span class="btn-text">Register</span>
+                        <i class="fas fa-spinner fa-spin ml-2 hidden"></i>
+                    </button>
+                    <p class="text-center text-sm text-gray-400">
+                        Already have an account? <a href="#" id="show-login" class="font-semibold text-red-500 hover:underline">Login here</a>
+                    </p>
+                </form>
+
+                <!-- Forgot Password Form -->
+                <form id="forgot-form" class="space-y-4 form-container form-hidden">
+                    <h2 class="text-xl font-semibold text-center text-white">Reset Password</h2>
+                    <p class="text-center text-sm text-gray-400">Enter your email and we'll send you a link to reset your password.</p>
+                    <div>
+                        <label for="forgot-email" class="block text-sm font-medium text-gray-300">Email</label>
+                        <input type="email" id="forgot-email" required class="w-full mt-1 px-4 py-2 rounded-lg focus:ring-0">
+                    </div>
+                    <p id="forgot-message" class="text-sm min-h-[20px] text-center"></p>
+                    <button type="submit" class="w-full btn-primary text-white font-semibold py-2.5 rounded-lg flex items-center justify-center">
+                        <span class="btn-text">Send Reset Link</span>
+                        <i class="fas fa-spinner fa-spin ml-2 hidden"></i>
+                    </button>
+                    <p class="text-center text-sm text-gray-400">
+                        Remembered it? <a href="#" id="show-login-from-forgot" class="font-semibold text-red-500 hover:underline">Back to Login</a>
+                    </p>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App Content -->
+    <main id="main-app" class="hidden bg-[#141414]">
+        <header class="bg-[#101010] text-white p-4 flex justify-between items-center sticky top-0 z-30 border-b border-gray-700">
+            <h1 class="text-xl font-bold"><i class="fas fa-cloud-showers-heavy text-red-600"></i> Monsoon Safety Net</h1>
+            <div class="flex items-center gap-4">
+                <button id="sos-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md text-sm transition">
+                    <i class="fas fa-exclamation-triangle"></i> SOS
+                </button>
+                <button id="logout-btn" class="text-sm text-gray-400 hover:text-white"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            </div>
+        </header>
+
+        <!-- Scrolling Alert Ticker -->
+        <div id="alert-ticker" class="bg-red-800 text-white p-2 text-sm shadow-md overflow-hidden whitespace-nowrap sticky top-[68px] z-20">
+            <div id="alert-ticker-content" class="inline-block">
+                <!-- Alerts will be dynamically inserted here -->
+            </div>
+        </div>
+
+        <!-- Top Navigation Bar -->
+        <nav class="bg-[#1f1f1f] shadow-md flex flex-wrap justify-around border-b border-gray-800 sticky top-[108px] z-20">
+            <button data-page="dashboard" class="nav-link nav-link-active font-semibold py-4 px-2 text-center w-1/2 md:w-1/5 transition-colors duration-200">
+                <i class="fas fa-th-large block mb-1"></i> Dashboard
+            </button>
+            <button data-page="map" class="nav-link font-semibold py-4 px-2 text-center w-1/2 md:w-1/5 transition-colors duration-200">
+                <i class="fas fa-map-marked-alt block mb-1"></i> Weather Map
+            </button>
+            <button data-page="alerts" class="nav-link font-semibold py-4 px-2 text-center w-1/2 md:w-1/5 transition-colors duration-200">
+                <i class="fas fa-shield-alt block mb-1"></i> Alerts & Guides
+            </button>
+            <button data-page="community" class="nav-link font-semibold py-4 px-2 text-center w-1/2 md:w-1/5 transition-colors duration-200">
+                <i class="fas fa-users block mb-1"></i> Community
+            </button>
+            <button data-page="emergency" class="nav-link font-semibold py-4 px-2 text-center w-full md:w-1/5 transition-colors duration-200">
+                <i class="fas fa-first-aid block mb-1"></i> Emergency
+            </button>
+        </nav>
+        
+        <div id="page-content" class="p-4 md:p-6 lg:p-8">
+            <!-- Dashboard (Weather) Page -->
+            <div id="dashboard-page" class="page">
+                <section id="weather-section" class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Main Weather Card -->
+                    <div class="lg:col-span-2 weather-card p-6 rounded-xl shadow-lg">
+                         <div class="flex justify-between items-start">
+                            <div>
+                                <h2 id="location" class="text-3xl font-bold">Hyderabad</h2>
+                                <p id="weather-description" class="text-lg text-gray-300">Light Rain</p>
+                            </div>
+                            <div class="text-right">
+                                <p id="current-date" class="font-medium"></p>
+                                <p id="current-time" class="text-gray-300"></p>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between mt-6">
+                            <div class="flex items-center">
+                                <i id="weather-icon" class="wi wi-day-rain text-7xl"></i>
+                                <p id="temperature" class="text-7xl font-bold ml-4">24°C</p>
+                            </div>
+                            <div class="text-right space-y-2 text-gray-200">
+                                <p id="feels-like"><i class="fas fa-temperature-half fa-fw mr-1"></i> Feels Like: 25°C</p>
+                                <p id="humidity"><i class="fas fa-tint fa-fw mr-1"></i> Humidity: 94%</p>
+                                <p id="wind-speed"><i class="fas fa-wind fa-fw mr-1"></i> Wind: 10 km/h</p>
+                            </div>
+                        </div>
+                        <form id="location-search-form" class="mt-6 flex gap-2">
+                            <input id="location-input" type="text" placeholder="Search for a city or pincode..." class="w-full px-4 py-2 rounded-lg bg-black/20 placeholder-white/50 text-white focus:outline-none focus:ring-2 focus:ring-red-500">
+                            <button type="submit" class="bg-white/20 hover:bg-white/30 text-white font-bold py-2 px-4 rounded-lg">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </form>
+                    </div>
+                     <!-- Secondary Details -->
+                    <div class="space-y-4">
+                        <div class="page-card flex items-center justify-between">
+                            <div>
+                                <h3 class="font-bold text-gray-300">Sunrise</h3>
+                                <p id="sunrise-time" class="text-2xl font-semibold">6:05 AM</p>
+                            </div>
+                            <i class="fas fa-sun text-yellow-400 text-3xl"></i>
+                        </div>
+                         <div class="page-card flex items-center justify-between">
+                            <div>
+                                <h3 class="font-bold text-gray-300">Sunset</h3>
+                                <p id="sunset-time" class="text-2xl font-semibold">6:45 PM</p>
+                            </div>
+                            <i class="fas fa-moon text-blue-300 text-3xl"></i>
+                        </div>
+                        <div class="page-card">
+                             <h3 class="font-bold text-gray-300 mb-2 text-center">Wind</h3>
+                             <div class="flex items-center justify-around text-center">
+                                 <div>
+                                    <i id="wind-direction-arrow" class="fas fa-arrow-up text-4xl text-gray-400 transition-transform duration-500"></i>
+                                     <p id="wind-direction" class="font-semibold mt-1">NW</p>
+                                 </div>
+                                  <div>
+                                     <p id="pressure" class="text-2xl font-semibold">1002 hPa</p>
+                                      <p class="text-sm text-gray-400">Pressure</p>
+                                  </div>
+                                   <div>
+                                     <p id="visibility" class="text-2xl font-semibold">5 km</p>
+                                     <p class="text-sm text-gray-400">Visibility</p>
+                                  </div>
+                             </div>
+                        </div>
+                    </div>
+                </section>
+                <div class="max-w-6xl mx-auto mt-6">
+                     <button id="hourly-outlook-btn" class="w-full btn-secondary text-white font-semibold py-3 rounded-lg shadow-md">
+                         <i class="fas fa-clock"></i> Get AI-Powered Hourly Outlook ✨
+                     </button>
+                </div>
+            </div>
+
+            <!-- Weather Map Page -->
+            <div id="map-page" class="page hidden max-w-6xl mx-auto">
+                <div class="page-card">
+                    <h2 class="text-2xl font-bold text-white mb-4">Live Weather Map</h2>
+                    <p class="text-gray-400 mb-4">Use the controls to toggle live precipitation and wind speed overlays. The map will automatically center on your searched location.</p>
+                    <button id="find-location-btn" class="mb-4 btn-primary text-white font-semibold py-2 px-4 rounded-lg">
+                        <i class="fas fa-location-arrow"></i> Find My Location
+                    </button>
+                    <div id="weather-map"></div>
+                </div>
+            </div>
+
+            <!-- Alerts & Safety Guides Page -->
+            <div id="alerts-page" class="page hidden max-w-4xl mx-auto">
+                <h2 class="text-3xl font-bold text-white mb-6" id="alerts-title">Alerts & Safety Guides</h2>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div class="page-card">
+                        <h3 class="text-xl font-semibold text-white mb-3" id="local-alerts-title">Local Safety Alerts for Hyderabad</h3>
+                        <div id="geo-alerts-container" class="space-y-3 mb-6">
+                           <!-- Alerts will be dynamically inserted here -->
+                        </div>
+                    </div>
+                    
+                    <div class="page-card">
+                        <h3 class="text-xl font-semibold text-white mb-3">AI Powered Tools</h3>
+                         <div class="grid grid-cols-1 gap-4">
+                            <button id="safety-tips-btn" class="w-full btn-secondary text-white font-semibold py-3 rounded-lg shadow-md text-left px-4 flex items-center gap-3">
+                                <i class="fas fa-brain w-6 text-center"></i> AI Safety Tips ✨
+                            </button>
+                            <button id="forecast-btn" class="w-full btn-secondary text-white font-semibold py-3 rounded-lg shadow-md text-left px-4 flex items-center gap-3">
+                                <i class="fas fa-calendar-alt w-6 text-center"></i> 3-Day Forecast ✨
+                            </button>
+                            <button id="allergy-outlook-btn" class="w-full btn-secondary text-white font-semibold py-3 rounded-lg shadow-md text-left px-4 flex items-center gap-3">
+                                <i class="fas fa-seedling w-6 text-center"></i> Allergy Outlook ✨
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Emergency Contacts Page -->
+            <div id="emergency-page" class="page hidden max-w-4xl mx-auto">
+                 <div class="page-card">
+                    <h2 class="text-2xl font-bold text-white mb-2">Emergency Contacts</h2>
+                    <p class="text-gray-400 mb-6">In an emergency, quick access to the right numbers is critical. Click any contact to call them directly.</p>
+                    <div id="emergency-contacts-container" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Dynamically populated -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Community Feed Page -->
+            <div id="community-page" class="page hidden max-w-4xl mx-auto">
+                <h2 class="text-3xl font-bold text-white mb-6">Community Feed</h2>
+                 <div class="page-card">
+                    <p class="text-gray-400 mb-6">Share and view real-time, on-the-ground updates from fellow citizens.</p>
+                    <form id="post-form" class="flex items-start space-x-3 mb-4">
+                        <textarea id="post-content" required class="w-full p-2 border rounded-lg focus:ring-red-500 focus:border-red-500 bg-[#333] border-gray-600" rows="2" placeholder="Share an update (e.g., waterlogging at Ameerpet)"></textarea>
+                        <button type="submit" class="btn-primary text-white font-semibold px-4 py-2 rounded-lg h-full"><i class="fas fa-paper-plane"></i></button>
+                    </form>
+                    <button id="summarize-feed-btn" class="w-full btn-secondary text-white font-semibold py-2 rounded-lg text-sm mb-4">
+                        <i class="fas fa-wand-magic-sparkles"></i> Summarize Feed with AI ✨
+                    </button>
+                    <div id="feed-container" class="space-y-4 custom-scrollbar h-96 overflow-y-auto p-1">
+                        <!-- Feed posts will be dynamically inserted here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- Gemini Response Modal -->
+    <div id="gemini-modal" class="modal-backdrop hidden items-center justify-center p-4">
+        <div class="modal-content p-6 rounded-lg shadow-xl w-full max-w-lg relative">
+            <button id="close-gemini-modal" class="absolute top-2 right-3 text-gray-400 hover:text-white text-2xl">&times;</button>
+            <h2 id="gemini-modal-title" class="text-xl font-bold text-white mb-4">AI Generated Response</h2>
+            <div id="gemini-modal-content" class="text-gray-300 space-y-2">
+                <div id="gemini-spinner" class="text-center py-8">
+                    <i class="fas fa-spinner fa-spin text-4xl text-red-600"></i>
+                    <p class="mt-2 text-lg">Generating response...</p>
+                </div>
+                <div id="gemini-response-text"></div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Leaflet JS for Maps -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+<!-- Firebase SDK -->
+    <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics.js";
+    import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, getDocs, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    // Your web app's Firebase configuration
+    const firebaseConfig = {
+        apiKey: "AIzaSyABFeuW5EaJx-L-BYBo-pEkplzMZGklAno",
+        authDomain: "hackathon-it.firebaseapp.com",
+        projectId: "hackathon-it",
+        storageBucket: "hackathon-it.appspot.com",
+        messagingSenderId: "707237165683",
+        appId: "1:707237165683:web:615fd400499a1941d60806",
+        measurementId: "G-GX8CK849VK"
+    };
+    
+    // --- App Initialization ---
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // --- App State & Constants ---
+    const OWM_API_KEY = "19f2c9f658d3b41ad4643857eb350e34"; 
+    const GEMINI_API_KEY = "YOUR_GEMINI_API_KEY"; // <-- IMPORTANT: Replace with your actual Gemini API Key
+    let map = null;
+    let userMarker = null;
+    
+    let currentAlerts = {
+        'Begumpet': { level: 'high', message: 'High flood risk near the airport. Avoid Begumpet flyover.' },
+        'Kukatpally': { level: 'medium', message: 'Waterlogging reported near JNTU junction. Proceed with caution.'},
+        'Secunderabad': { level: 'low', message: 'Minor waterlogging near the railway station. Traffic is slow.'},
+        'Madhapur': { level: 'medium', message: 'Reports of waterlogging in low-lying areas. Be careful.'}
+    };
+
+    const emergencyContacts = [
+        { name: 'National Emergency', number: '112', icon: 'fa-bullhorn' },
+        { name: 'Disaster Management', number: '1077', icon: 'fa-house-tsunami' },
+        { name: 'Traffic Police', number: '103', icon: 'fa-traffic-light' },
+        { name: 'Electricity Dept.', number: '1912', icon: 'fa-bolt' },
+        { name: 'GHMC Control Room', number: '040-2322-5397', icon: 'fa-city' },
+        { name: 'Gas Leak Helpline', number: '1906', icon: 'fa-fire-extinguisher' },
+    ];
+
+    // --- UI Element References ---
+    const authScreen = document.getElementById('auth-screen');
+    const mainApp = document.getElementById('main-app');
+    const geminiModal = document.getElementById('gemini-modal');
+    const loginForm = document.getElementById('login-form');
+    const registerForm = document.getElementById('register-form');
+    const forgotForm = document.getElementById('forgot-form');
+
+    // --- Helper Functions ---
+    const toggleButtonLoading = (button, isLoading) => {
+        const text = button.querySelector('.btn-text');
+        const spinner = button.querySelector('.fa-spinner');
+        if (isLoading) {
+            button.disabled = true;
+            text.classList.add('hidden');
+            spinner.classList.remove('hidden');
+        } else {
+            button.disabled = false;
+            text.classList.remove('hidden');
+            spinner.classList.add('hidden');
+        }
+    };
+
+    const degreesToCardinal = (deg) => {
+        const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+        const index = Math.round((deg % 360) / 22.5) % 16;
+        return directions[index];
+    }
+
+    // --- Authentication Logic ---
+    onAuthStateChanged(auth, user => {
+        if (user) {
+            authScreen.classList.add('hidden');
+            mainApp.classList.remove('hidden');
+            initializeAppState();
+        } else {
+            mainApp.classList.add('hidden');
+            authScreen.classList.remove('hidden');
+        }
+    });
+
+    const showAuthForm = (formIdToShow) => {
+        ['login-form', 'register-form', 'forgot-form'].forEach(id => {
+            document.getElementById(id).classList.add('form-hidden');
+        });
+        document.getElementById(formIdToShow).classList.remove('form-hidden');
+        
+        // Clear any previous error/success messages
+        document.getElementById('login-error').classList.add('hidden');
+        document.getElementById('register-error').classList.add('hidden');
+        const forgotMessage = document.getElementById('forgot-message');
+        if (forgotMessage) {
+            forgotMessage.textContent = '';
+            forgotMessage.classList.remove('text-green-400', 'text-red-500');
+        }
+    };
+
+    loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const button = loginForm.querySelector('button[type="submit"]');
+        toggleButtonLoading(button, true);
+        const email = document.getElementById('login-email').value;
+        const password = document.getElementById('login-password').value;
+        const errorEl = document.getElementById('login-error');
+        errorEl.classList.add('hidden');
+
+        try {
+            await signInWithEmailAndPassword(auth, email, password);
+        } catch (error) {
+            errorEl.classList.remove('hidden');
+            errorEl.textContent = "Invalid credentials. Please try again.";
+        } finally {
+            toggleButtonLoading(button, false);
+        }
+    });
+
+    registerForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const button = registerForm.querySelector('button[type="submit"]');
+        toggleButtonLoading(button, true);
+        const email = document.getElementById('register-email').value;
+        const password = document.getElementById('register-password').value;
+        const errorEl = document.getElementById('register-error');
+        errorEl.classList.add('hidden');
+        try {
+            await createUserWithEmailAndPassword(auth, email, password);
+        } catch (error) {
+            errorEl.textContent = error.message;
+            errorEl.classList.remove('hidden');
+        } finally {
+            toggleButtonLoading(button, false);
+        }
+    });
+
+    forgotForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const button = forgotForm.querySelector('button[type="submit"]');
+        toggleButtonLoading(button, true);
+        const email = document.getElementById('forgot-email').value;
+        const messageEl = document.getElementById('forgot-message');
+        messageEl.textContent = '';
+        messageEl.classList.remove('text-green-400', 'text-red-500');
+
+        try {
+            await sendPasswordResetEmail(auth, email);
+            messageEl.textContent = 'Reset link sent! Check your inbox (and spam folder).';
+            messageEl.classList.add('text-green-400');
+        } catch (error) {
+            console.error("Password Reset Error:", error.code, error.message); // Log for debugging
+            // Provide more specific feedback to the user
+            if (error.code === 'auth/invalid-email') {
+                messageEl.textContent = 'The email address is not valid.';
+            } else if (error.code === 'auth/user-not-found') {
+                messageEl.textContent = 'No user found with this email.';
+            } else {
+                messageEl.textContent = "Could not send reset email. Please try again.";
+            }
+            messageEl.classList.add('text-red-500');
+        } finally {
+            toggleButtonLoading(button, false);
+        }
+    });
+
+    document.getElementById('show-register').addEventListener('click', (e) => { e.preventDefault(); showAuthForm('register-form'); });
+    document.getElementById('show-login').addEventListener('click', (e) => { e.preventDefault(); showAuthForm('login-form'); });
+    document.getElementById('show-forgot').addEventListener('click', (e) => { e.preventDefault(); showAuthForm('forgot-form'); });
+    document.getElementById('show-login-from-forgot').addEventListener('click', (e) => { e.preventDefault(); showAuthForm('login-form'); });
+    
+    document.getElementById('logout-btn').addEventListener('click', () => signOut(auth));
+    
+    document.querySelectorAll('.password-toggle').forEach(toggle => {
+        toggle.addEventListener('click', () => {
+            const targetInput = document.getElementById(toggle.dataset.target);
+            const icon = toggle.querySelector('i');
+            if (targetInput.type === 'password') {
+                targetInput.type = 'text';
+                icon.classList.replace('fa-eye', 'fa-eye-slash');
+            } else {
+                targetInput.type = 'password';
+                icon.classList.replace('fa-eye-slash', 'fa-eye');
+            }
+        });
+    });
+
+    // --- Core Application Logic ---
+    function initializeAppState() {
+        getCurrentLocation();
+        displayGeoAlerts(currentAlerts, 'Hyderabad');
+        displayEmergencyContacts();
+        setupCommunityFeed();
+        initializeMap();
+        updateTime();
+        setInterval(updateTime, 1000 * 30);
+    }
+
+    document.getElementById('location-search-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const query = document.getElementById('location-input').value.trim();
+        if(query) fetchWeather(query);
+    });
+
+    async function fetchWeather(query) {
+        let url;
+        if (/^\d{6}$/.test(query)) {
+            url = `https://api.openweathermap.org/data/2.5/weather?zip=${query},IN&appid=${OWM_API_KEY}&units=metric`;
+        } else if (typeof query === 'string') {
+            url = `https://api.openweathermap.org/data/2.5/weather?q=${query}&appid=${OWM_API_KEY}&units=metric`;
+        } else {
+            url = `https://api.openweathermap.org/data/2.5/weather?lat=${query.lat}&lon=${query.lon}&appid=${OWM_API_KEY}&units=metric`;
+        }
+        
+        try {
+            const response = await fetch(url);
+            if(!response.ok) throw new Error("Location not found.");
+            const data = await response.json();
+            
+            // Update UI elements
+            document.getElementById('location').textContent = data.name;
+            document.getElementById('weather-description').textContent = data.weather[0].main;
+            document.getElementById('temperature').innerHTML = `${Math.round(data.main.temp)}&deg;C`;
+            document.getElementById('feels-like').innerHTML = `<i class="fas fa-temperature-half fa-fw mr-1"></i> Feels Like: ${Math.round(data.main.feels_like)}&deg;C`;
+            document.getElementById('humidity').innerHTML = `<i class="fas fa-tint fa-fw mr-1"></i> Humidity: ${data.main.humidity}%`;
+            document.getElementById('wind-speed').innerHTML = `<i class="fas fa-wind fa-fw mr-1"></i> Wind: ${Math.round(data.wind.speed * 3.6)} km/h`;
+            document.getElementById('sunrise-time').textContent = new Date(data.sys.sunrise * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            document.getElementById('sunset-time').textContent = new Date(data.sys.sunset * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            document.getElementById('visibility').textContent = `${data.visibility / 1000} km`;
+            document.getElementById('pressure').textContent = `${data.main.pressure} hPa`;
+            
+            const windDir = degreesToCardinal(data.wind.deg);
+            document.getElementById('wind-direction').textContent = windDir;
+            document.getElementById('wind-direction-arrow').style.transform = `rotate(${data.wind.deg}deg)`;
+
+            if(map) {
+                const coords = [data.coord.lat, data.coord.lon];
+                map.setView(coords, 10);
+                if (userMarker) {
+                    userMarker.setLatLng(coords);
+                } else {
+                    userMarker = L.marker(coords).addTo(map);
+                }
+                userMarker.bindPopup(`<b>${data.name}</b>`).openPopup();
+            }
+
+            fetchAndDisplayDynamicAlerts(data.name);
+
+        } catch (error) {
+            console.error("Error fetching weather:", error);
+            document.getElementById('weather-description').textContent = error.message;
+        }
+    }
+    
+    async function fetchAndDisplayDynamicAlerts(city) {
+        const prompt = `Act as a local disaster management authority for ${city}. Generate 4 brief, realistic safety alerts related to potential weather issues in the area (like rain, flooding, heatwave, etc.). For each alert, provide a location name within the city, a severity level (Low, Medium, or High), and a short descriptive message. Format the output as a simple list, with each item in the format: "Location :: Severity :: Message"`;
+        const response = await callGeminiAPI(prompt);
+        
+        const newAlerts = {};
+        const lines = response.split('\n');
+        lines.forEach(line => {
+            const parts = line.split('::');
+            if (parts.length === 3) {
+                const location = parts[0].replace(/[\*#]/g, '').trim();
+                const level = parts[1].trim().toLowerCase();
+                const message = parts[2].trim();
+                if (location && ['low', 'medium', 'high'].includes(level) && message) {
+                    newAlerts[location] = { level, message };
+                }
+            }
+        });
+
+        currentAlerts = Object.keys(newAlerts).length > 0 ? newAlerts : { "General Alert": { level: 'low', message: `No specific alerts for ${city}. Stay cautious.` }};
+        
+        displayGeoAlerts(currentAlerts, city);
+    }
+
+    function displayGeoAlerts(alerts, city) {
+        document.getElementById('local-alerts-title').textContent = `Local Safety Alerts for ${city}`;
+        const container = document.getElementById('geo-alerts-container');
+        container.innerHTML = ''; 
+        for (const area in alerts) {
+            const alertData = alerts[area];
+            const alertEl = document.createElement('div');
+            alertEl.className = `p-4 rounded-lg flex items-start space-x-3 alert-${alertData.level}`;
+            const iconClass = alertData.level === 'high' ? 'fa-triangle-exclamation' : (alertData.level === 'medium' ? 'fa-cloud-showers-heavy' : 'fa-info-circle');
+            alertEl.innerHTML = `<i class="fas ${iconClass} mt-1"></i><div><h3 class="font-bold">${area}</h3><p class="text-sm">${alertData.message}</p></div>`;
+            container.appendChild(alertEl);
+        }
+        displayScrollingAlerts(alerts);
+    }
+
+    function displayScrollingAlerts(alerts) {
+        const container = document.getElementById('alert-ticker-content');
+        container.innerHTML = Object.entries(alerts).map(([area, data]) => 
+            `<span class="mx-6"><i class="fas fa-exclamation-triangle"></i> <strong>${area}:</strong> ${data.message}</span>`
+        ).join('');
+    }
+
+    function displayEmergencyContacts() {
+        const container = document.getElementById('emergency-contacts-container');
+        container.innerHTML = emergencyContacts.map(contact => `
+            <a href="tel:${contact.number}" class="bg-gray-800 p-4 rounded-lg flex items-center space-x-4 hover:bg-gray-700 transition">
+                <div class="bg-red-600 text-white rounded-full h-12 w-12 flex items-center justify-center shrink-0"><i class="fas ${contact.icon} text-xl"></i></div>
+                <div>
+                    <p class="font-semibold text-white">${contact.name}</p>
+                    <p class="text-gray-400">${contact.number}</p>
+                </div>
+            </a>
+        `).join('');
+    }
+
+    function setupCommunityFeed() {
+        const feedContainer = document.getElementById('feed-container');
+        const postForm = document.getElementById('post-form');
+        const postContent = document.getElementById('post-content');
+
+        const q = query(collection(db, "posts"), orderBy("timestamp", "desc"));
+        onSnapshot(q, (querySnapshot) => {
+            if (querySnapshot.empty) {
+                feedContainer.innerHTML = `<p class="text-center text-gray-500">No community updates yet. Be the first to post!</p>`;
+                return;
+            }
+            feedContainer.innerHTML = '';
+            querySnapshot.forEach((doc) => {
+                const post = doc.data();
+                const postEl = document.createElement('div');
+                postEl.className = 'bg-[#141414] p-4 rounded-lg border border-gray-700';
+                postEl.innerHTML = `<p class="text-gray-200 break-words">${post.content}</p><div class="text-right text-xs text-gray-500 mt-2"><span>${post.user.substring(0, post.user.indexOf('@'))}</span> | <span>${formatTimeAgo(post.timestamp?.toDate())}</span></div>`;
+                feedContainer.appendChild(postEl);
+            });
+        });
+
+        postForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const content = postContent.value.trim();
+            if (content && auth.currentUser) {
+                await addDoc(collection(db, "posts"), { content: content, user: auth.currentUser.email, timestamp: serverTimestamp() });
+                postContent.value = '';
+            }
+        });
+    }
+
+    function updateTime() {
+        const now = new Date();
+        document.getElementById('current-date').textContent = now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+        document.getElementById('current-time').textContent = now.toLocaleTimeString(undefined, { hour: '2-digit', minute:'2-digit' });
+    }
+
+    function formatTimeAgo(date) { 
+        if (!date) return 'just now';
+        const seconds = Math.floor((new Date() - date) / 1000);
+        if(seconds < 5) return 'just now'; 
+        let interval = seconds / 31536000;
+        if (interval > 1) return Math.floor(interval) + " years ago";
+        interval = seconds / 2592000;
+        if (interval > 1) return Math.floor(interval) + " months ago";
+        interval = seconds / 86400;
+        if (interval > 1) return Math.floor(interval) + " days ago";
+        interval = seconds / 3600;
+        if (interval > 1) return Math.floor(interval) + " hours ago";
+        interval = seconds / 60;
+        if (interval > 1) return Math.floor(interval) + " minutes ago";
+        return Math.floor(seconds) + " seconds ago";
+    }
+
+    function getCurrentLocation() {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                position => fetchWeather({ lat: position.coords.latitude, lon: position.coords.longitude }),
+                () => fetchWeather('Hyderabad') // Default on denial
+            );
+        } else {
+            fetchWeather('Hyderabad'); // Default on no support
+        }
+    }
+    document.getElementById('find-location-btn').addEventListener('click', getCurrentLocation);
+
+    function initializeMap() {
+        if (map) return;
+        map = L.map('weather-map').setView([17.3850, 78.4867], 10);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+            subdomains: 'abcd',
+            maxZoom: 19
+        }).addTo(map);
+    }
+
+    // --- Gemini API Integration ---
+    async function callGeminiAPI(prompt) {
+        if (GEMINI_API_KEY === "YOUR_GEMINI_API_KEY") {
+            return "<strong>Admin Notice:</strong> The AI features are currently disabled. Please add a valid Gemini API key to the code to enable them.";
+        }
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
+        const payload = { contents: [{ parts: [{ text: prompt }] }] };
+        try {
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
+            const result = await response.json();
+            return result.candidates[0].content.parts[0].text;
+        } catch (error) {
+            console.error("Gemini API call failed:", error);
+            return `An error occurred while contacting the AI model: ${error.message}`;
+        }
+    }
+
+    function showGeminiModal(title) {
+        geminiModal.classList.remove('hidden');
+        document.getElementById('gemini-modal-title').textContent = title;
+        document.getElementById('gemini-spinner').classList.remove('hidden');
+        document.getElementById('gemini-response-text').innerHTML = '';
+    }
+
+    function displayGeminiResponse(text) {
+        document.getElementById('gemini-spinner').classList.add('hidden');
+        const formattedContent = text
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/^\* (.*?)$/gm, '<li class="ml-4 list-disc">$1</li>')
+            .replace(/\n/g, '<br>');
+        document.getElementById('gemini-response-text').innerHTML = formattedContent;
+    }
+    
+    document.getElementById('close-gemini-modal').addEventListener('click', () => geminiModal.classList.add('hidden'));
+
+    document.getElementById('hourly-outlook-btn').addEventListener('click', async () => {
+        showGeminiModal('AI-Powered Hourly Outlook ✨');
+        const prompt = `Act as a professional meteorologist. The current weather in ${document.getElementById('location').textContent} is "${document.getElementById('weather-description').textContent}". Provide a narrative-style hourly outlook for the next 4-6 hours. Be descriptive and reassuring.`;
+        const response = await callGeminiAPI(prompt);
+        displayGeminiResponse(response);
+    });
+    
+    document.getElementById('safety-tips-btn').addEventListener('click', async () => {
+        showGeminiModal('AI-Powered Safety Tips ✨');
+        const prompt = `Act as a disaster management expert for ${document.getElementById('location').textContent}. The current weather is "${document.getElementById('weather-description').textContent}". Provide 5 concise, actionable safety tips.`;
+        const response = await callGeminiAPI(prompt);
+        displayGeminiResponse(response);
+    });
+
+    document.getElementById('forecast-btn').addEventListener('click', async () => {
+        showGeminiModal('AI-Powered 3-Day Forecast ✨');
+        const prompt = `Provide a simple 3-day weather forecast for ${document.getElementById('location').textContent}. For each day, give a short description, high/low temps in Celsius, and one practical tip. Format clearly.`;
+        const response = await callGeminiAPI(prompt);
+        displayGeminiResponse(response);
+    });
+
+    document.getElementById('allergy-outlook-btn').addEventListener('click', async () => {
+        showGeminiModal('AI-Powered Allergy Outlook ✨');
+        const prompt = `Act as an allergist for ${document.getElementById('location').textContent}. Current conditions are: ${document.getElementById('weather-description').textContent}, ${document.getElementById('humidity').textContent}. Provide an allergy outlook, mention primary allergens, a risk level, and one tip.`;
+        const response = await callGeminiAPI(prompt);
+        displayGeminiResponse(response);
+    });
+
+    document.getElementById('summarize-feed-btn').addEventListener('click', async () => {
+        showGeminiModal('AI Community Feed Summary ✨');
+        const q = query(collection(db, "posts"), orderBy("timestamp", "desc"), limit(15));
+        const querySnapshot = await getDocs(q);
+        let postsContent = "";
+        querySnapshot.forEach(doc => { postsContent += `- ${doc.data().content}\n`; });
+
+        if (postsContent.trim() === "") {
+            displayGeminiResponse("There are no posts to summarize yet.");
+            return;
+        }
+
+        const prompt = `You are a city safety assistant. Summarize these real-time citizen updates into 2-3 sentences, mentioning key affected areas or problems:\n\n${postsContent}`;
+        const response = await callGeminiAPI(prompt);
+        displayGeminiResponse(response);
+    });
+
+    document.getElementById('sos-btn').addEventListener('click', () => {
+        document.querySelector('[data-page="emergency"]').click();
+    });
+
+    // --- Page Navigation ---
+    const navLinks = document.querySelectorAll('.nav-link');
+    const pages = document.querySelectorAll('.page');
+    navLinks.forEach(link => {
+        link.addEventListener('click', () => {
+            const pageId = link.dataset.page;
+            navLinks.forEach(l => l.classList.remove('nav-link-active'));
+            link.classList.add('nav-link-active');
+            
+            pages.forEach(page => page.classList.toggle('hidden', page.id !== `${pageId}-page`));
+            
+            if (pageId === 'map' && map) {
+                setTimeout(() => map.invalidateSize(), 10);
+            }
+        });
+    });
+
+</script>
+</body>
+</html>
+
+
+
